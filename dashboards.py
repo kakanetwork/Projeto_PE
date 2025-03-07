@@ -2,9 +2,15 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import requests
-
+import scipy.stats as stats
+import numpy as np
+import plotly.graph_objects as go
+    
 # Carregar dados
 df = pd.read_csv("./csv/MICRODADOS_FILT_ENEM_2018.csv", sep=";")
+
+# Filtrar apenas os dados do RN
+# df = df[df["SG_UF_ESC"] == "RN"]
 
 # Calcular média geral
 df["NU_MEDIA_GERAL"] = df[['NU_NOTA_CN', 'NU_NOTA_CH', 'NU_NOTA_LC', 'NU_NOTA_MT', 'NU_NOTA_REDACAO']].mean(axis=1)
@@ -136,6 +142,65 @@ fig.update_geos(fitbounds="locations", visible=False)
 # Exibir no Streamlit
 st.plotly_chart(fig)
 
-
-
 st.write("📌 **Observação**: Este dashboard permite visualizar relações entre notas e variáveis socioeconômicas.")
+
+st.subheader("📊 Probabilidade de Nota Acima de 700")
+
+# Cálculo da probabilidade usando distribuição normal
+media = df["NU_MEDIA_GERAL"].mean()
+desvio_padrao = df["NU_MEDIA_GERAL"].std()
+prob = 1 - stats.norm.cdf(700, media, desvio_padrao)
+
+st.metric(label="Probabilidade de tirar acima de 700", value=f"{prob:.2%}")
+st.caption("📌 Apenas uma pequena porcentagem dos alunos conseguem atingir uma nota superior a 700.")
+
+# Calculando a média e o desvio padrão
+media = df["NU_MEDIA_GERAL"].mean()
+desvio_padrao = df["NU_MEDIA_GERAL"].std()
+
+# Criando um eixo x para a curva normal
+x = np.linspace(df["NU_MEDIA_GERAL"].min(), df["NU_MEDIA_GERAL"].max(), 100)
+y = stats.norm.pdf(x, media, desvio_padrao)
+
+# Criando histograma interativo com curva de distribuição normal
+fig = go.Figure()
+fig.add_trace(go.Histogram(x=df["NU_MEDIA_GERAL"], nbinsx=40, histnorm='probability density', name='Dados'))
+fig.add_trace(go.Scatter(x=x, y=y, mode='lines', name='Distribuição Normal', line=dict(color='red')))
+
+fig.update_layout(
+    title="Distribuição Normal das Notas Gerais",
+    xaxis_title="Nota",
+    yaxis_title="Densidade de Probabilidade",
+    hovermode="x unified"
+)
+
+st.plotly_chart(fig)
+
+# ================================
+# 🔹 1. Curva Acumulada de Probabilidade
+# ================================
+fig_cdf = go.Figure()
+y_cdf = stats.norm.cdf(x, media, desvio_padrao)
+
+fig_cdf.add_trace(go.Scatter(x=x, y=y_cdf, mode='lines', name='Distribuição Acumulada', fill='tozeroy'))
+
+fig_cdf.update_layout(
+    title="Curva Acumulada de Probabilidade",
+    xaxis_title="Nota",
+    yaxis_title="Probabilidade Acumulada (%)",
+    hovermode="x unified"
+)
+
+# Multiplicar a probabilidade acumulada por 100 para exibir em porcentagem
+y_cdf_percent = y_cdf * 100
+fig_cdf.update_traces(y=y_cdf_percent)
+
+st.plotly_chart(fig_cdf)
+
+# ================================
+# 🔹 4. Gráfico de Dispersão: Nota vs. Idade
+# ================================
+st.subheader("📈 Gráfico de Dispersão: Nota vs. Idade")
+fig_scatter = px.scatter(df, x="TP_FAIXA_ETARIA", y="NU_MEDIA_GERAL", color="TP_FAIXA_ETARIA", title="Nota vs. Idade")
+st.plotly_chart(fig_scatter)
+
